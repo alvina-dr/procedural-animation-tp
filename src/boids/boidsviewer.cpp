@@ -23,7 +23,8 @@ constexpr glm::vec4 boidsRed = { 1.f, 0.f, 0.f, 1.f };
 
 const int numBoids = 100;
 
-class Boid {
+class Boid 
+{
 public:
 	glm::vec3 Position;
 	glm::vec3 Velocity;
@@ -31,17 +32,14 @@ public:
 };
 
 
-struct BoidsVertexShaderAdditionalData {
+struct BoidsVertexShaderAdditionalData 
+{
 	glm::vec3 Pos;
 	/// beware of alignement (std430 rule)
 };
 
-struct BoidsViewer : Viewer {
-
-	glm::vec3 jointPosition;
-	glm::vec3 cubePosition;
-	float boneAngle;
-
+struct BoidsViewer : Viewer 
+{
 	glm::vec2 mousePos;
 
 	bool leftMouseButtonPressed;
@@ -51,10 +49,11 @@ struct BoidsViewer : Viewer {
 	float visualRange = 4;
 	float speedLimit = .3;
 	float minDistance = 1; // The distance to stay away from other boids
-	float avoidFactor = 0.003; // Adjust velocity by this %
-	float turnFactor = .5f; // To stay in the bounds
+	float avoidFactor = 0.1; // Adjust velocity by this %
+	float turnFactor = 0.5f; // To stay in the bounds
 	float centeringFactor = 0.03; // (fly towards center) Adjust velocity by this %
-
+	float matchingFactor = 0.05; // Adjust by this % of average velocity
+	glm::vec3 bounds = glm::vec3(10, 10, 10);
 	std::vector<Boid*> boidList = { };
 
 	BoidsVertexShaderAdditionalData additionalShaderData;
@@ -62,9 +61,6 @@ struct BoidsViewer : Viewer {
 	BoidsViewer() : Viewer(boidsViewerName, 1280, 720) {}
 
 	void init() override {
-		cubePosition = glm::vec3(1.f, 0.25f, -1.f);
-		jointPosition = glm::vec3(-1.f, 2.f, -1.f);
-		boneAngle = 0.f;
 		mousePos = { 0.f, 0.f };
 		leftMouseButtonPressed = false;
 
@@ -110,17 +106,48 @@ struct BoidsViewer : Viewer {
 		}
 	}
 
+	// Find the average velocity (speed and direction) of the other boids and
+	// adjust velocity slightly to match.
+	void matchVelocity(Boid* boid) {
+
+		float avgDX = 0;
+		float avgDY = 0;
+		float avgDZ = 0;
+		int numNeighbors = 0;
+
+		for (size_t i = 0; i < boidList.size(); i++) 
+		{
+			if (distance(boid, boidList[i]) < visualRange) {
+				avgDX += boidList[i]->Velocity.x;
+				avgDY += boidList[i]->Velocity.y;
+				avgDZ += boidList[i]->Velocity.z;
+				numNeighbors += 1;
+			}
+		}
+
+		if (numNeighbors) 
+		{
+			avgDX = avgDX / numNeighbors;
+			avgDY = avgDY / numNeighbors;
+			avgDZ = avgDZ / numNeighbors;
+
+			boid->Velocity.x += (avgDX - boid->Velocity.x) * matchingFactor;
+			boid->Velocity.y += (avgDY - boid->Velocity.y) * matchingFactor;
+			boid->Velocity.z += (avgDZ - boid->Velocity.z) * matchingFactor;
+		}
+	}
+
 	// Speed will naturally vary in flocking behavior, but real animals can't go
 	// arbitrarily fast.
 	void limitSpeed(Boid* boid) {
 
 		float speed = sqrt(boid->Velocity.x * boid->Velocity.x + boid->Velocity.y * boid->Velocity.y + boid->Velocity.z * boid->Velocity.z);
-		if (speed > speedLimit) {
+		if (speed > speedLimit) 
+		{
 			boid->Velocity.x = (boid->Velocity.x / speed) * speedLimit;
 			boid->Velocity.y = (boid->Velocity.y / speed) * speedLimit;
 			boid->Velocity.z = (boid->Velocity.z / speed) * speedLimit;
 		}
-		//std::cout << "velocity : " << boid->Velocity.x << ", " << boid->Velocity.y << ", " << boid->Velocity.z << std::endl;
 	}
 
 	// Move away from other boids that are too close to avoid colliding
@@ -133,7 +160,8 @@ struct BoidsViewer : Viewer {
 		for (size_t i = 0; i < boidList.size(); i++) 
 		{
 			if (boidList[i] != boid) {
-				if (distance(boid, boidList[i]) < minDistance) {
+				if (distance(boid, boidList[i]) < minDistance) 
+				{
 					moveX += boid->Position.x - boidList[i]->Position.x;
 					moveY += boid->Position.y - boidList[i]->Position.y;
 					moveZ += boid->Position.z - boidList[i]->Position.z;
@@ -148,34 +176,38 @@ struct BoidsViewer : Viewer {
 
 	// Constrain a boid to within the window. If it gets too close to an edge,
 	// nudge it back in and reverse its direction.
-	void keepWithinBounds(Boid* boid) {
-		glm::vec3 bounds = glm::vec3(10, 10, 10);
-
-		if (boid->Position.x < -bounds.x / 2) {
+	void keepWithinBounds(Boid* boid) 
+	{
+		if (boid->Position.x < -bounds.x / 2) 
+		{
 			boid->Velocity.x += turnFactor;
 		}
-		else if (boid->Position.x > bounds.x / 2) {
+		else if (boid->Position.x > bounds.x / 2) 
+		{
 			boid->Velocity.x -= turnFactor;
 		}
 
-		if (boid->Position.y < 0) {
+		if (boid->Position.y < 0) 
+		{
 			boid->Velocity.y += turnFactor;
 		}
-		else if (boid->Position.y > bounds.y) {
+		else if (boid->Position.y > bounds.y) 
+		{
 			boid->Velocity.y -= turnFactor;
 		}
 
-		if (boid->Position.z < -bounds.z / 2) {
+		if (boid->Position.z < -bounds.z / 2) 
+		{
 			boid->Velocity.z += turnFactor;
 		}
-		else if (boid->Position.z > bounds.z / 2) {
+		else if (boid->Position.z > bounds.z / 2) 
+		{
 			boid->Velocity.z -= turnFactor;
 		}
 	}
 
-	void update(double elapsedTime) override {
-		boneAngle = (float)elapsedTime;
-
+	void update(double elapsedTime) override 
+	{
 		leftMouseButtonPressed = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
 
 		altKeyPressed = glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_ALT) == GLFW_PRESS;
@@ -193,6 +225,7 @@ struct BoidsViewer : Viewer {
 		{
 			flyTowardsCenter(boidList[i]);
 			avoidOthers(boidList[i]);
+			matchVelocity(boidList[i]);
 			limitSpeed(boidList[i]);
 			keepWithinBounds(boidList[i]);
 		}
@@ -203,20 +236,15 @@ struct BoidsViewer : Viewer {
 		}
 	}
 
-	void render3D_custom(const RenderApi3D& api) const override {
+	void render3D_custom(const RenderApi3D& api) const override 
+	{
 		//Here goes your drawcalls affected by the custom vertex shader
-		//api.horizontalPlane({ 0, 2, 0 }, { 4, 4 }, 200, glm::vec4(0.0f, 0.2f, 1.f, 1.f));
 	}
 
 	void render3D(const RenderApi3D& api) const override {
-		api.horizontalPlane({ 0, 0, 0 }, { 10, 10 }, 1, glm::vec4(0.9f, 0.9f, 0.9f, 1.f));
-
-		api.grid(10.f, 10, glm::vec4(0.5f, 0.5f, 0.5f, 1.f), nullptr);
-
-		api.axisXYZ(nullptr);
-
-		constexpr float cubeSize = 10;
-		glm::mat4 cubeModelMatrix = glm::translate(glm::identity<glm::mat4>(), cubePosition);
+		//api.horizontalPlane({ 0, 0, 0 }, { 10, 10 }, 1, glm::vec4(0.9f, 0.9f, 0.9f, 1.f));
+		//api.grid(10.f, 10, glm::vec4(0.5f, 0.5f, 0.5f, 1.f), nullptr);
+		//api.axisXYZ(nullptr);
 
 		for (size_t i = 0; i < boidList.size(); i++)
 		{
@@ -232,44 +260,43 @@ struct BoidsViewer : Viewer {
 		glm::vec3 vertices[24] =
 		{
 			//Bottom sqare
-			glm::vec3(-cubeSize / 2, 0 ,-cubeSize / 2),
-			glm::vec3(-cubeSize / 2, 0 ,cubeSize / 2),
+			glm::vec3(-bounds.x / 2, 0, -bounds.z / 2),
+			glm::vec3(-bounds.x / 2, 0, bounds.z / 2),
 
-			glm::vec3(-cubeSize / 2, 0 ,cubeSize / 2),
-			glm::vec3(cubeSize / 2, 0 ,cubeSize / 2),
+			glm::vec3(-bounds.x / 2, 0, bounds.z / 2),
+			glm::vec3(bounds.x / 2, 0, bounds.z / 2),
 
-			glm::vec3(cubeSize / 2, 0 ,cubeSize / 2),
-			glm::vec3(cubeSize / 2, 0,-cubeSize / 2),
+			glm::vec3(bounds.x / 2, 0, bounds.z / 2),
+			glm::vec3(bounds.x / 2, 0, -bounds.z / 2),
 
-			glm::vec3(cubeSize / 2, 0 ,-cubeSize / 2),
-			glm::vec3(-cubeSize / 2, 0 ,-cubeSize / 2),
+			glm::vec3(bounds.x / 2, 0 , -bounds.z / 2),
+			glm::vec3(-bounds.x / 2, 0, -bounds.z / 2),
 
 			//Bottom to top
-			glm::vec3(-cubeSize / 2, 0 ,-cubeSize / 2),
-			glm::vec3(-cubeSize / 2, cubeSize ,-cubeSize / 2),
+			glm::vec3(-bounds.x / 2, 0 , -bounds.z / 2),
+			glm::vec3(-bounds.x / 2, bounds.y, -bounds.z / 2),
 
-			glm::vec3(-cubeSize / 2, 0 ,cubeSize / 2),
-			glm::vec3(-cubeSize / 2, cubeSize ,cubeSize / 2),
+			glm::vec3(-bounds.x / 2, 0, bounds.z / 2),
+			glm::vec3(-bounds.x / 2, bounds.y, bounds.z / 2),
 
-			glm::vec3(cubeSize / 2, 0 ,cubeSize / 2),
-			glm::vec3(cubeSize / 2, cubeSize ,cubeSize / 2),
+			glm::vec3(bounds.x / 2, 0, bounds.z / 2),
+			glm::vec3(bounds.x / 2, bounds.y, bounds.z / 2),
 
-			glm::vec3(cubeSize / 2, 0 ,-cubeSize / 2),
-			glm::vec3(cubeSize / 2, cubeSize ,-cubeSize / 2),
+			glm::vec3(bounds.x / 2, 0, -bounds.z / 2),
+			glm::vec3(bounds.x / 2, bounds.y, -bounds.z / 2),
 
 			//Top Square
+			glm::vec3(-bounds.x / 2, bounds.y, -bounds.z / 2),
+			glm::vec3(-bounds.x / 2, bounds.y, bounds.z / 2),
 
-			glm::vec3(-cubeSize / 2, cubeSize ,-cubeSize / 2),
-			glm::vec3(-cubeSize / 2, cubeSize ,cubeSize / 2),
+			glm::vec3(-bounds.x / 2, bounds.y, bounds.z / 2),
+			glm::vec3(bounds.x / 2, bounds.y, bounds.z / 2),
 
-			glm::vec3(-cubeSize / 2, cubeSize ,cubeSize / 2),
-			glm::vec3(cubeSize / 2, cubeSize ,cubeSize / 2),
+			glm::vec3(bounds.x / 2, bounds.y, bounds.z / 2),
+			glm::vec3(bounds.x / 2, bounds.y, -bounds.z / 2),
 
-			glm::vec3(cubeSize / 2, cubeSize ,cubeSize / 2),
-			glm::vec3(cubeSize / 2, cubeSize,-cubeSize / 2),
-
-			glm::vec3(cubeSize / 2, cubeSize ,-cubeSize / 2),
-			glm::vec3(-cubeSize / 2, cubeSize ,-cubeSize / 2),
+			glm::vec3(bounds.x / 2, bounds.y, -bounds.z / 2),
+			glm::vec3(-bounds.x / 2, bounds.y, -bounds.z / 2),
 		};
 		api.lines(vertices, 24, glm::vec4(0.5f, 0.5f, 0.5f, 1.f), nullptr);
 	}
@@ -323,9 +350,7 @@ struct BoidsViewer : Viewer {
 		ImGui::Begin("3D Sandbox");
 
 		ImGui::Checkbox("Show demo window", &showDemoWindow);
-
 		ImGui::ColorEdit4("Background color", (float*)&backgroundColor, ImGuiColorEditFlags_NoInputs);
-
 
 		ImGui::SliderFloat("Visual Range", &visualRange, 0.f, 10.f);
 		ImGui::SliderFloat("Speed Limit", &speedLimit, 0.f, 2.0f);
@@ -333,17 +358,14 @@ struct BoidsViewer : Viewer {
 		ImGui::SliderFloat("Avoid Factor", &avoidFactor, 0.f, 1.0f);
 		ImGui::SliderFloat("Turn Factor", &turnFactor, 0.f, 1.0f);
 		ImGui::SliderFloat("Centering Factor", &centeringFactor, 0.000f, 0.01f);
+		ImGui::SliderFloat3("Bounds Size", &bounds.x, 0, 100.f);
 		ImGui::Separator();
 
-		ImGui::Separator();
-		ImGui::SliderFloat3("CustomShader_Pos", &additionalShaderData.Pos.x, -10.f, 10.f);
-		ImGui::Separator();
 		float fovDegrees = glm::degrees(camera.fov);
 		if (ImGui::SliderFloat("Camera field of fiew (degrees)", &fovDegrees, 15, 180)) {
 			camera.fov = glm::radians(fovDegrees);
 		}
 
-		ImGui::SliderFloat3("Cube Position", (float(&)[3])cubePosition, -1.f, 1.f);
 
 		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 
