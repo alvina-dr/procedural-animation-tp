@@ -36,6 +36,8 @@ endif()
 
 set(SOURCE_FILES 
 	src/main.cpp
+	src/myviewer.cpp
+	src/boids/boidsviewer.cpp
 	src/shader.cpp
 	src/drawbuffer.cpp
 	src/renderengine.cpp
