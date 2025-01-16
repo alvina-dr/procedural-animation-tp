@@ -1,9 +1,9 @@
 #include "myviewer.cpp"
 #include "boids/boidsviewer.cpp"
-#include "boids/particlesviewer.cpp"
-#include "boids/clothviewer.cpp"
+#include "particles/particlesviewer.cpp"
+#include "forwardkinematic/fkviewer.cpp"
 
 int main(int argc, char** argv) {
-	BoidsViewer v;
+	FkViewer v;
 	return v.run();
 }
