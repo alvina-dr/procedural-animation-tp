@@ -317,14 +317,6 @@ struct BoidsViewer : Viewer
 				api.quadContour(min, max, boidsWhite);
 			}
 		}
-
-		glm::vec2 vertices[] = {
-			{ padding, viewportHeight - padding },
-			{ viewportWidth * 0.5f, viewportHeight - 2.f * padding },
-			{ viewportWidth * 0.5f, viewportHeight - 2.f * padding },
-			{ viewportWidth - padding, viewportHeight - padding },
-		};
-		api.lines(vertices, COUNTOF(vertices), boidsWhite);
 	}
 
 	void drawGUI() override {
