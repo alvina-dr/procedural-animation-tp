@@ -19,7 +19,6 @@ constexpr char const* boidsViewerName = "BoidsViewer";
 constexpr glm::vec4 boidsWhite = { 1.f, 1.f, 1.f, 1.f };
 constexpr glm::vec4 boidsBlue = { 0.f, 0.f, 1.f, 1.f };
 constexpr glm::vec4 boidsGreen = { 0.f, 1.f, 0.f, 1.f };
-constexpr glm::vec4 boidsRed = { 1.f, 0.f, 0.f, 1.f };
 
 const int numBoids = 100;
 
