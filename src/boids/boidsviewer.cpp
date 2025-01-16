@@ -19,7 +19,6 @@ constexpr char const* boidsViewerName = "BoidsViewer";
 constexpr glm::vec4 boidsWhite = { 1.f, 1.f, 1.f, 1.f };
 constexpr glm::vec4 boidsBlue = { 0.f, 0.f, 1.f, 1.f };
 constexpr glm::vec4 boidsGreen = { 0.f, 1.f, 0.f, 1.f };
-constexpr glm::vec4 boidsRed = { 1.f, 0.f, 0.f, 1.f };
 
 const int numBoids = 100;
 
@@ -74,10 +73,10 @@ struct BoidsViewer : Viewer
 		}
 	}
 
-	float distance(Boid* boid1, Boid* boid2) {
-		float xSqr = (boid1->Position.x - boid2->Position.x) * (boid1->Position.x - boid2->Position.x);
-		float ySqr = (boid1->Position.y - boid2->Position.y) * (boid1->Position.y - boid2->Position.y);
-		float zSqr = (boid1->Position.z - boid2->Position.z) * (boid1->Position.z - boid2->Position.z);
+	float distance(glm::vec3 position1, glm::vec3 position2) {
+		float xSqr = (position1.x - position2.x) * (position1.x - position2.x);
+		float ySqr = (position1.y - position2.y) * (position1.y - position2.y);
+		float zSqr = (position1.z - position2.z) * (position1.z - position2.z);
 
 		float sqr = xSqr + ySqr + zSqr;
 
@@ -91,7 +90,7 @@ struct BoidsViewer : Viewer
 
 		for (size_t i = 0; i < boidList.size(); i++) 
 		{
-			if (distance(boid, boidList[i]) < visualRange) {
+			if (distance(boid->Position, boidList[i]->Position) < visualRange) {
 				center += boidList[i]->Position;
 				numNeighbors += 1;
 			}
@@ -108,32 +107,26 @@ struct BoidsViewer : Viewer
 
 	// Find the average velocity (speed and direction) of the other boids and
 	// adjust velocity slightly to match.
-	void matchVelocity(Boid* boid) {
-
-		float avgDX = 0;
-		float avgDY = 0;
-		float avgDZ = 0;
+	void matchVelocity(Boid* boid) 
+	{
+		glm::vec3 averageVelocity = glm::vec3(0, 0, 0);
 		int numNeighbors = 0;
 
 		for (size_t i = 0; i < boidList.size(); i++) 
 		{
-			if (distance(boid, boidList[i]) < visualRange) {
-				avgDX += boidList[i]->Velocity.x;
-				avgDY += boidList[i]->Velocity.y;
-				avgDZ += boidList[i]->Velocity.z;
+			if (distance(boid->Position, boidList[i]->Position) < visualRange) {
+				averageVelocity += boidList[i]->Velocity;
 				numNeighbors += 1;
 			}
 		}
 
 		if (numNeighbors) 
 		{
-			avgDX = avgDX / numNeighbors;
-			avgDY = avgDY / numNeighbors;
-			avgDZ = avgDZ / numNeighbors;
+			averageVelocity.x = averageVelocity.x / numNeighbors;
+			averageVelocity.y = averageVelocity.y / numNeighbors;
+			averageVelocity.z = averageVelocity.z / numNeighbors;
 
-			boid->Velocity.x += (avgDX - boid->Velocity.x) * matchingFactor;
-			boid->Velocity.y += (avgDY - boid->Velocity.y) * matchingFactor;
-			boid->Velocity.z += (avgDZ - boid->Velocity.z) * matchingFactor;
+			boid->Velocity += averageVelocity * matchingFactor;
 		}
 	}
 
@@ -160,7 +153,7 @@ struct BoidsViewer : Viewer
 		for (size_t i = 0; i < boidList.size(); i++) 
 		{
 			if (boidList[i] != boid) {
-				if (distance(boid, boidList[i]) < minDistance) 
+				if (distance(boid->Position, boidList[i]->Position) < minDistance) 
 				{
 					moveX += boid->Position.x - boidList[i]->Position.x;
 					moveY += boid->Position.y - boidList[i]->Position.y;
@@ -324,24 +317,6 @@ struct BoidsViewer : Viewer
 				api.quadContour(min, max, boidsWhite);
 			}
 		}
-
-		{
-			const glm::vec2 from = { viewportWidth * 0.5f, padding };
-			const glm::vec2 to = { viewportWidth * 0.5f, 2.f * padding };
-			constexpr float thickness = padding * 0.25f;
-			constexpr float hatRatio = 0.3f;
-			api.arrow(from, to, thickness, hatRatio, boidsWhite);
-		}
-
-		{
-			glm::vec2 vertices[] = {
-				{ padding, viewportHeight - padding },
-				{ viewportWidth * 0.5f, viewportHeight - 2.f * padding },
-				{ viewportWidth * 0.5f, viewportHeight - 2.f * padding },
-				{ viewportWidth - padding, viewportHeight - padding },
-			};
-			api.lines(vertices, COUNTOF(vertices), boidsWhite);
-		}
 	}
 
 	void drawGUI() override {
@@ -358,6 +333,7 @@ struct BoidsViewer : Viewer
 		ImGui::SliderFloat("Avoid Factor", &avoidFactor, 0.f, 1.0f);
 		ImGui::SliderFloat("Turn Factor", &turnFactor, 0.f, 1.0f);
 		ImGui::SliderFloat("Centering Factor", &centeringFactor, 0.000f, 0.01f);
+		ImGui::SliderFloat("Matching factor", &matchingFactor, 0.0f, 1);
 		ImGui::SliderFloat3("Bounds Size", &bounds.x, 0, 100.f);
 		ImGui::Separator();
 

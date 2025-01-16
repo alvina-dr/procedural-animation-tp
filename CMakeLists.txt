@@ -1,6 +1,7 @@
 ﻿cmake_minimum_required (VERSION 3.5)
 
 set(PROJECT_NAME OpenGLSandbox)
+set(CMAKE_CXX_STANDARD 17)
 
 project (${PROJECT_NAME})
 
@@ -38,6 +39,7 @@ set(SOURCE_FILES
 	src/main.cpp
 	src/myviewer.cpp
 	src/boids/boidsviewer.cpp
+	src/boids/particlesviewer.cpp
 	src/shader.cpp
 	src/drawbuffer.cpp
 	src/renderengine.cpp
