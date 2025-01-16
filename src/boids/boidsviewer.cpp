@@ -108,32 +108,26 @@ struct BoidsViewer : Viewer
 
 	// Find the average velocity (speed and direction) of the other boids and
 	// adjust velocity slightly to match.
-	void matchVelocity(Boid* boid) {
-
-		float avgDX = 0;
-		float avgDY = 0;
-		float avgDZ = 0;
+	void matchVelocity(Boid* boid) 
+	{
+		glm::vec3 averageVelocity = glm::vec3(0, 0, 0);
 		int numNeighbors = 0;
 
 		for (size_t i = 0; i < boidList.size(); i++) 
 		{
 			if (distance(boid, boidList[i]) < visualRange) {
-				avgDX += boidList[i]->Velocity.x;
-				avgDY += boidList[i]->Velocity.y;
-				avgDZ += boidList[i]->Velocity.z;
+				averageVelocity += boidList[i]->Velocity;
 				numNeighbors += 1;
 			}
 		}
 
 		if (numNeighbors) 
 		{
-			avgDX = avgDX / numNeighbors;
-			avgDY = avgDY / numNeighbors;
-			avgDZ = avgDZ / numNeighbors;
+			averageVelocity.x = averageVelocity.x / numNeighbors;
+			averageVelocity.y = averageVelocity.y / numNeighbors;
+			averageVelocity.z = averageVelocity.z / numNeighbors;
 
-			boid->Velocity.x += (avgDX - boid->Velocity.x) * matchingFactor;
-			boid->Velocity.y += (avgDY - boid->Velocity.y) * matchingFactor;
-			boid->Velocity.z += (avgDZ - boid->Velocity.z) * matchingFactor;
+			boid->Velocity += averageVelocity * matchingFactor;
 		}
 	}
 
@@ -358,6 +352,7 @@ struct BoidsViewer : Viewer
 		ImGui::SliderFloat("Avoid Factor", &avoidFactor, 0.f, 1.0f);
 		ImGui::SliderFloat("Turn Factor", &turnFactor, 0.f, 1.0f);
 		ImGui::SliderFloat("Centering Factor", &centeringFactor, 0.000f, 0.01f);
+		ImGui::SliderFloat("Matching factor", &matchingFactor, 0.0f, 1);
 		ImGui::SliderFloat3("Bounds Size", &bounds.x, 0, 100.f);
 		ImGui::Separator();
 
