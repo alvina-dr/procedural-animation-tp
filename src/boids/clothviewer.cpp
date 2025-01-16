@@ -14,6 +14,9 @@
 #include <iostream>
 
 #define COUNTOF(ARRAY) (sizeof(ARRAY) / sizeof(ARRAY[0]))
+#define CONSTRAINT_ITERATIONS 15 // how many iterations of constraint satisfaction each frame (more is rigid, less is soft)
+#define DAMPING 0.01f // how much to damp the cloth simulation each frame
+#define TIME_STEPSIZE2 0.5f*0.5f // how large time step each particle takes each frame
 
 constexpr char const* clothViewerName = "ClothViewer";
 
@@ -22,10 +25,11 @@ class ClothParticle
 public:
 	bool CanMove;
 	glm::vec3 Position;
+	glm::vec3 OldPosition;
 	glm::vec3 Velocity;
-	float Mass; // the mass of the particle (is always 1 in this example)
+	float Mass = 1; // the mass of the particle (is always 1 in this example)
 
-	ClothParticle(glm::vec3 position): Position(position) { }
+	ClothParticle(glm::vec3 position) : Position(position), CanMove(true), OldPosition(position), Velocity(glm::vec3(0, 0, 0)) { }
 
 	void offsetPos(const glm::vec3 v) { if (CanMove) Position += v; }
 
@@ -36,12 +40,32 @@ public:
 	{
 		Velocity += f / Mass;
 	}
+
+	// This is one of the important methods, where the time is progressed a single step size (TIME_STEPSIZE)
+	// The method is called by Cloth.time_step()
+	// Given the equation "force = mass * acceleration" the next position is found through verlet integration
+	void timeStep()
+	{
+		if (CanMove)
+		{
+			glm::vec3 temp = Position;
+			Position = Position + (Position - OldPosition) * (1.0f - DAMPING) + Velocity * TIME_STEPSIZE2;
+			OldPosition = temp;
+			Velocity = glm::vec3(0, 0, 0); // acceleration is reset since it HAS been translated into a change in position (and implicitely into velocity)	
+		}
+	}
+
+	void updateDerivatives(float dt)
+	{
+		Velocity = (Position - OldPosition) / dt;
+	}
 };
 
 class Constraint
 {
 private:
 	float restDistance; // the length between particle p1 and p2 in rest configuration
+	float strength;
 
 public:
 	ClothParticle* p1, * p2; // the two particles that are connected through this constraint
@@ -62,7 +86,6 @@ public:
 		p1->offsetPos(correctionVectorHalf); // correctionVectorHalf is pointing from p1 to p2, so the length should move p1 half the length needed to satisfy the constraint.
 		p2->offsetPos(-correctionVectorHalf); // we must move p2 the negative direction of correctionVectorHalf since it points from p2 to p1, and not p1 to p2.	
 	}
-
 };
 
 struct ClothVertexShaderAdditionalData
@@ -81,8 +104,13 @@ struct ClothViewer : Viewer
 	// Tweakable data
 	int clothWidth = 10;
 	int clothHeight = 10;
-	float width = 10;
-	float height = 10;
+	float width = 5;
+	float height = 5;
+
+	glm::vec3 windForce = glm::vec3(0, 0, 0);
+	glm::vec3 gravity = glm::vec3(0, 0, 0);
+
+	float oldElapsedTime;
 
 	std::vector<ClothParticle*> particleList; // all particles that are part of this cloth
 	std::vector<Constraint*> constraintList; // alle constraints between particles as part of this cloth
@@ -102,22 +130,66 @@ struct ClothViewer : Viewer
 		return sqrt(sqr);
 	}
 
-	void init() override {
-		mousePos = { 0.f, 0.f };
-		leftMouseButtonPressed = false;
+	void deleteRandomConstraint() 
+	{
+		int index = rand() % clothWidth* clothHeight;
+		for (int i = 0; i < constraintList.size(); i++) 
+		{
+			if (index == i)
+				constraintList.erase(constraintList.begin() + i);
+		}
+	}
 
-		altKeyPressed = false;
+	/* this is an important methods where the time is progressed one time step for the entire cloth.
+	This includes calling satisfyConstraint() for every constraint, and calling timeStep() for all particles
+	*/
+	void timeStep()
+	{
+		for (int i = 0; i < CONSTRAINT_ITERATIONS; i++) // iterate over all constraints several times
+		{
+			for (size_t i = 0; i < constraintList.size(); i++)
+			{
+				constraintList[i]->satisfyConstraint(); // satisfy constraint.
+			}
+		}
 
+		std::vector<Particle>::iterator particle;
+		for (size_t i = 0; i < particleList.size(); i++)
+		{
+			particleList[i]->timeStep(); // calculate the position of each particle at the next time step.
+		}
+	}
+
+	void addClothForce(glm::vec3 force) 
+	{
+		for (size_t i = 0; i < particleList.size(); i++)
+		{
+			particleList[i]->addForce(force);
+		}
+	}
+
+	void applyAirFriction()
+	{
+		const float friction_coef = 0.5f;
+		for (size_t i = 0; i < particleList.size(); i++)
+		{
+			particleList[i]->Velocity *= -friction_coef;
+		}
+	}
+
+	void initCloth() 
+	{
+		constraintList.clear();
+
+		particleList.clear();
 		particleList.resize(clothWidth * clothHeight); //I am essentially using this vector as an array with room for num_particles_width*num_particles_height particles
 
-		// creating particles in a grid of particles from (0,0,0) to (width,-height,0)
+		// Creating particles in a grid of particles from (0,0,0) to (width,-height,0)
 		for (int x = 0; x < clothWidth; x++)
 		{
 			for (int y = 0; y < clothHeight; y++)
 			{
-				glm::vec3 pos = glm::vec3(width * (x / (float)clothWidth),
-					-height * (y / (float)clothHeight),
-					0);
+				glm::vec3 pos = glm::vec3(width * (x / (float)clothWidth), height * (y / (float)clothHeight), 0);
 				particleList[y * clothWidth + x] = new ClothParticle(pos); // insert particle in column x at y'th row
 			}
 		}
@@ -129,32 +201,41 @@ struct ClothViewer : Viewer
 			{
 				if (x < clothWidth - 1) makeConstraint(getParticle(x, y), getParticle(x + 1, y));
 				if (y < clothHeight - 1) makeConstraint(getParticle(x, y), getParticle(x, y + 1));
-				if (x < clothWidth - 1 && y < clothHeight - 1) makeConstraint(getParticle(x, y), getParticle(x + 1, y + 1));
-				if (x < clothWidth - 1 && y < clothHeight - 1) makeConstraint(getParticle(x + 1, y), getParticle(x, y + 1));
+
+				// Uncomment to add diagonal neighbors
+				//if (x < clothWidth - 1 && y < clothHeight - 1) makeConstraint(getParticle(x, y), getParticle(x + 1, y + 1));
+				//if (x < clothWidth - 1 && y < clothHeight - 1) makeConstraint(getParticle(x + 1, y), getParticle(x, y + 1));
 			}
 		}
 
 		// Connecting secondary neighbors with constraints (distance 2 and sqrt(4) in the grid)
-		for (int x = 0; x < clothWidth; x++)
-		{
-			for (int y = 0; y < clothHeight; y++)
-			{
-				if (x < clothWidth - 2) makeConstraint(getParticle(x, y), getParticle(x + 2, y));
-				if (y < clothHeight - 2) makeConstraint(getParticle(x, y), getParticle(x, y + 2));
-				if (x < clothWidth - 2 && y < clothHeight - 2) makeConstraint(getParticle(x, y), getParticle(x + 2, y + 2));
-				if (x < clothWidth - 2 && y < clothHeight - 2) makeConstraint(getParticle(x + 2, y), getParticle(x, y + 2));
-			}
-		}
+		//for (int x = 0; x < clothWidth; x++)
+		//{
+		//	for (int y = 0; y < clothHeight; y++)
+		//	{
+		//		if (x < clothWidth - 2) makeConstraint(getParticle(x, y), getParticle(x + 2, y));
+		//		if (y < clothHeight - 2) makeConstraint(getParticle(x, y), getParticle(x, y + 2));
+		//		if (x < clothWidth - 2 && y < clothHeight - 2) makeConstraint(getParticle(x, y), getParticle(x + 2, y + 2));
+		//		if (x < clothWidth - 2 && y < clothHeight - 2) makeConstraint(getParticle(x + 2, y), getParticle(x, y + 2));
+		//	}
+		//}
 
-		// making the upper left most three and right most three particles unmovable
-		for (int i = 0; i < 3; i++)
+		// Making the upper left most three and right most three particles unmovable
+		for (int i = 0; i < 2; i++)
 		{
-			getParticle(0 + i, 0)->offsetPos(glm::vec3(0.5, 0.0, 0.0)); // moving the particle a bit towards the center, to make it hang more natural - because I like it ;)
 			getParticle(0 + i, 0)->makeUnmovable();
-
-			getParticle(0 + i, 0)->offsetPos(glm::vec3(-0.5, 0.0, 0.0)); // moving the particle a bit towards the center, to make it hang more natural - because I like it ;)
 			getParticle(clothWidth - 1 - i, 0)->makeUnmovable();
 		}
+	}
+
+	void init() override 
+	{
+		mousePos = { 0.f, 0.f };
+		leftMouseButtonPressed = false;
+
+		altKeyPressed = false;
+
+		initCloth();
 	}
 
 	void update(double elapsedTime) override
@@ -168,6 +249,17 @@ struct ClothViewer : Viewer
 		glfwGetCursorPos(window, &mouseX, &mouseY);
 
 		mousePos = { float(mouseX), viewportHeight - float(mouseY) };
+
+		// Delta time
+		float deltaTime = elapsedTime - oldElapsedTime;
+		oldElapsedTime = elapsedTime;
+
+		float random = (float)(rand() % 10) * 0.01f;
+		glm::vec3 force = random * windForce;
+		addClothForce(gravity);
+		addClothForce(force);
+		applyAirFriction();
+		timeStep();
 	}
 
 	void render3D_custom(const RenderApi3D& api) const override
@@ -182,19 +274,17 @@ struct ClothViewer : Viewer
 
 		for (size_t i = 0; i < particleList.size(); i++)
 		{
-			api.solidSphere(particleList[i]->Position, 0.2f, 10, 10, boidsGreen);
+			api.solidSphere(particleList[i]->Position, 0.08f, 10, 10, boidsGreen);
 		}
-
 
 		for (size_t i = 0; i < constraintList.size(); i++)
 		{
 			glm::vec3 vertices[2] =
 			{
-				//Bottom sqare
 				constraintList[i]->p1->Position,
 				constraintList[i]->p2->Position
 			};
-			api.lines(vertices, 24, glm::vec4(0.5f, 0.5f, 0.5f, 1.f), nullptr);
+			api.lines(vertices, 2, glm::vec4(0.5f, 0.5f, 0.5f, 1.f), nullptr);
 		}
 	}
 
@@ -230,14 +320,26 @@ struct ClothViewer : Viewer
 
 		ImGui::Checkbox("Show demo window", &showDemoWindow);
 		ImGui::ColorEdit4("Background color", (float*)&backgroundColor, ImGuiColorEditFlags_NoInputs);
+		ImGui::Separator();
+		ImGui::SliderFloat3("Gravity", &gravity.x, -1.0f, 1.0f);
+		ImGui::SliderFloat3("Wind Force", &windForce.x, -3.0f, 3.0f);
+		if (ImGui::Button("Erase random constraint")) 
+		{
+			deleteRandomConstraint();
+		}
 
+		if (ImGui::Button("New Cloth"))
+		{
+			initCloth();
+		}
+		
 		ImGui::Separator();
 
 		float fovDegrees = glm::degrees(camera.fov);
-		if (ImGui::SliderFloat("Camera field of fiew (degrees)", &fovDegrees, 15, 180)) {
+		if (ImGui::SliderFloat("Camera field of fiew (degrees)", &fovDegrees, 15, 180)) 
+		{
 			camera.fov = glm::radians(fovDegrees);
 		}
-
 
 		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 
