@@ -73,10 +73,10 @@ struct BoidsViewer : Viewer
 		}
 	}
 
-	float distance(Boid* boid1, Boid* boid2) {
-		float xSqr = (boid1->Position.x - boid2->Position.x) * (boid1->Position.x - boid2->Position.x);
-		float ySqr = (boid1->Position.y - boid2->Position.y) * (boid1->Position.y - boid2->Position.y);
-		float zSqr = (boid1->Position.z - boid2->Position.z) * (boid1->Position.z - boid2->Position.z);
+	float distance(glm::vec3 position1, glm::vec3 position2) {
+		float xSqr = (position1.x - position2.x) * (position1.x - position2.x);
+		float ySqr = (position1.y - position2.y) * (position1.y - position2.y);
+		float zSqr = (position1.z - position2.z) * (position1.z - position2.z);
 
 		float sqr = xSqr + ySqr + zSqr;
 
@@ -90,7 +90,7 @@ struct BoidsViewer : Viewer
 
 		for (size_t i = 0; i < boidList.size(); i++) 
 		{
-			if (distance(boid, boidList[i]) < visualRange) {
+			if (distance(boid->Position, boidList[i]->Position) < visualRange) {
 				center += boidList[i]->Position;
 				numNeighbors += 1;
 			}
@@ -114,7 +114,7 @@ struct BoidsViewer : Viewer
 
 		for (size_t i = 0; i < boidList.size(); i++) 
 		{
-			if (distance(boid, boidList[i]) < visualRange) {
+			if (distance(boid->Position, boidList[i]->Position) < visualRange) {
 				averageVelocity += boidList[i]->Velocity;
 				numNeighbors += 1;
 			}
@@ -153,7 +153,7 @@ struct BoidsViewer : Viewer
 		for (size_t i = 0; i < boidList.size(); i++) 
 		{
 			if (boidList[i] != boid) {
-				if (distance(boid, boidList[i]) < minDistance) 
+				if (distance(boid->Position, boidList[i]->Position) < minDistance) 
 				{
 					moveX += boid->Position.x - boidList[i]->Position.x;
 					moveY += boid->Position.y - boidList[i]->Position.y;
@@ -318,23 +318,13 @@ struct BoidsViewer : Viewer
 			}
 		}
 
-		{
-			const glm::vec2 from = { viewportWidth * 0.5f, padding };
-			const glm::vec2 to = { viewportWidth * 0.5f, 2.f * padding };
-			constexpr float thickness = padding * 0.25f;
-			constexpr float hatRatio = 0.3f;
-			api.arrow(from, to, thickness, hatRatio, boidsWhite);
-		}
-
-		{
-			glm::vec2 vertices[] = {
-				{ padding, viewportHeight - padding },
-				{ viewportWidth * 0.5f, viewportHeight - 2.f * padding },
-				{ viewportWidth * 0.5f, viewportHeight - 2.f * padding },
-				{ viewportWidth - padding, viewportHeight - padding },
-			};
-			api.lines(vertices, COUNTOF(vertices), boidsWhite);
-		}
+		glm::vec2 vertices[] = {
+			{ padding, viewportHeight - padding },
+			{ viewportWidth * 0.5f, viewportHeight - 2.f * padding },
+			{ viewportWidth * 0.5f, viewportHeight - 2.f * padding },
+			{ viewportWidth - padding, viewportHeight - padding },
+		};
+		api.lines(vertices, COUNTOF(vertices), boidsWhite);
 	}
 
 	void drawGUI() override {
