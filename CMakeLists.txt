@@ -39,7 +39,8 @@ set(SOURCE_FILES
 	src/main.cpp
 	src/myviewer.cpp
 	src/boids/boidsviewer.cpp
-	src/boids/particlesviewer.cpp
+	src/particles/particlesviewer.cpp
+	src/forwardkinematic/fkviewer.cpp
 	src/shader.cpp
 	src/drawbuffer.cpp
 	src/renderengine.cpp
