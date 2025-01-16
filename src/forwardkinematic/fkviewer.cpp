@@ -120,7 +120,7 @@ private:
 		glm::quat y = glm::angleAxis(eulerRot.y, glm::vec3(0.f, 1.f, 0.f));
 		glm::quat z = glm::angleAxis(eulerRot.z, glm::vec3(0.f, 0.f, 1.f));
 
-		return x * y * z;
+		return z*y*x;
 	}
 };
 
